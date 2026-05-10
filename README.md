@@ -45,10 +45,3 @@ $this->app->bind(TicketOwnerResolver::class, \App\Support\CustomTicketOwnerResol
 ```
 
 This is the main extension point for projects that do not use the package's default token-to-model mapping.
-
-## Best practices
-
-- Keep host-specific logic out of the package models and controllers.
-- Use adapters or container bindings for authorization rules.
-- Treat the package config as the public extension surface.
-- Add tests for the default resolver and one host-specific adapter.

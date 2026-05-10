@@ -2,6 +2,7 @@
 
 namespace Khaled\Ticketing;
 
+use Illuminate\Support\Facades\Route;
 use Khaled\Ticketing\Contracts\TicketAccessResolver;
 use Khaled\Ticketing\Contracts\TicketOwnerResolver;
 use Khaled\Ticketing\Support\DefaultTicketAccessResolver;
@@ -13,7 +14,7 @@ class TicketingServiceProvider extends ServiceProvider
     public function boot()
     {
         $this->loadRoutesFrom(__DIR__ . '/../routes/web.php');
-        $this->loadRoutesFrom(__DIR__ . '/../routes/api.php');
+        Route::middleware('api')->prefix('api')->group(__DIR__ . '/../routes/api.php');
         $this->loadViewsFrom(__DIR__ . '/../resources/views', 'ticketing');
         $this->loadMigrationsFrom(__DIR__ . '/../database/migrations');
         $this->mergeConfigFrom(__DIR__ . '/../config/ticketing.php', 'ticketing');
