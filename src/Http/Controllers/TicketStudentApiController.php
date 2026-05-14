@@ -285,6 +285,7 @@ class TicketStudentApiController extends Controller
 
     private function transformTicket(Ticket $ticket): array
     {
+        $repliesFilesId = [];
         $data = [
             'id' => $ticket->id,
             'title' => $ticket->title,
