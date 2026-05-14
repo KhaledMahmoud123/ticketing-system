@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Collection;
 use Khaled\Ticketing\Models\Ticket;
 use Khaled\Ticketing\Models\TicketFile;
 use Khaled\Ticketing\Models\TicketReply;
@@ -65,16 +66,25 @@ class TicketStudentApiController extends Controller
 
         $perPage = max(1, min((int) request()->input('per_page', 15), 100));
 
+        // Get ALL reply file IDs (not just current page)
+        $allRepliesFileIds = $ticket->replies()
+            ->with('file')
+            ->get()
+            ->map(fn($reply) => $reply->relationLoaded('file') && $reply->file ? $reply->file->id : null)
+            ->filter()
+            ->values()
+            ->all();
+
+        // Then paginate normally
         $repliesPaginator = $ticket->replies()
             ->with(['sender', 'file'])
             ->orderByDesc('id')
             ->paginate($perPage)
             ->appends(request()->query());
 
-        $ticketData = $this->transformTicket($ticket);
-        $ticketData['replies'] = collect($repliesPaginator->items())
-            ->map(fn($reply) => $this->transformReply($reply))
-            ->values();
+        $paginatedReplies = collect($repliesPaginator->items());
+
+        $ticketData = $this->transformTicket($ticket, $paginatedReplies, $allRepliesFileIds);
 
         return $this->handleResponse(true, 'Ticket details fetched successfully.', [
             'ticket' => $ticketData,
@@ -85,6 +95,7 @@ class TicketStudentApiController extends Controller
                 'total' => $repliesPaginator->total(),
             ],
         ], 200);
+
     }
     public function replies(Request $request, $id): JsonResponse
     {
@@ -282,10 +293,10 @@ class TicketStudentApiController extends Controller
             ] : null,
         ];
     }
-
-    private function transformTicket(Ticket $ticket): array
+    private function transformTicket(Ticket $ticket, ?Collection $replies = null, array $allRepliesFileIds = []): array
     {
-        $repliesFilesId = [];
+        $repliesFilesId = $allRepliesFileIds; // use the full list
+
         $data = [
             'id' => $ticket->id,
             'title' => $ticket->title,
@@ -305,24 +316,35 @@ class TicketStudentApiController extends Controller
                 'priority' => $ticket->type->priority,
             ];
         }
-        if ($ticket->relationLoaded('replies')) {
-            $data['replies'] = $ticket->replies->map(fn(TicketReply $reply) => $this->transformReply($reply))->values();
-            $repliesFilesId = $ticket->replies->pluck('file.id')->filter()->values()->all();
+
+        if ($replies !== null) {
+            $data['replies'] = $replies
+                ->map(fn(TicketReply $reply) => $this->transformReply($reply))
+                ->values();
+        } elseif ($ticket->relationLoaded('replies')) {
+            $data['replies'] = $ticket->replies
+                ->map(fn(TicketReply $reply) => $this->transformReply($reply))
+                ->values();
+
+            // Only compute from loaded replies when no allRepliesFileIds were passed
+            $repliesFilesId = $ticket->replies
+                ->map(fn($reply) => $reply->relationLoaded('file') && $reply->file ? $reply->file->id : null)
+                ->filter()
+                ->values()
+                ->all();
         }
 
         if ($ticket->relationLoaded('files')) {
-            $data['files'] = $ticket->files->filter(function ($file) use ($repliesFilesId) {
-                return !in_array($file->id, $repliesFilesId);
-            })->map(function ($file) {
-                return [
+            $data['files'] = $ticket->files
+                ->filter(fn($file) => !in_array($file->id, $repliesFilesId))
+                ->map(fn($file) => [
                     'original_name' => basename((string) $file->name),
                     'type' => $file->type,
                     'url' => $file->url,
                     'created_at' => $file->created_at,
-                ];
-            })->values();
+                ])
+                ->values();
         }
-
         return $data;
     }
     public function handleResponse($success = true, $message = '', $data = [], $statusCode = 200)
