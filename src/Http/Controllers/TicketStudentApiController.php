@@ -18,12 +18,11 @@ class TicketStudentApiController extends Controller
     public function types(): JsonResponse
     {
         $types = TicketType::query()
-            ->select(['id', 'name', 'description', 'priority', 'role_id'])
-            ->with('role:id,name')
+            ->select(['id', 'name', 'description', 'priority'])
             ->orderBy('name')
             ->get();
 
-        return handleResponse(true, 'Ticket types fetched successfully.', ['types' => $types], 200);
+        return $this->handleResponse(true, 'Ticket types fetched successfully.', ['types' => $types], 200);
     }
 
     public function index(Request $request): JsonResponse
@@ -31,7 +30,7 @@ class TicketStudentApiController extends Controller
         $owner = $this->resolveTicketOwner();
 
         if (!$owner) {
-            return handleResponse(false, 'Ticket owner could not be resolved for the provided token.', [], 404);
+            return $this->handleResponse(false, 'Ticket owner could not be resolved for the provided token.', [], 404);
         }
 
         $tickets = Ticket::query()
@@ -44,7 +43,7 @@ class TicketStudentApiController extends Controller
             ->latest('id')
             ->get();
 
-        return handleResponse(true, 'Student tickets fetched successfully.', ['tickets' => $tickets->map(fn(Ticket $ticket) => $this->transformTicket($ticket))->values()], 200);
+        return $this->handleResponse(true, 'Student tickets fetched successfully.', ['tickets' => $tickets->map(fn(Ticket $ticket) => $this->transformTicket($ticket))->values()], 200);
     }
 
     public function show($id): JsonResponse
@@ -56,10 +55,10 @@ class TicketStudentApiController extends Controller
             ->whereKey($id)
             ->first();
         if (!$ticket) {
-            return handleResponse(false, 'Ticket not found.', [], 404);
+            return $this->handleResponse(false, 'Ticket not found.', [], 404);
         }
         if (!$owner || !$this->ticketBelongsToOwner($ticket, $owner)) {
-            return handleResponse(false, 'This ticket does not belong to the authenticated user.', [], 404);
+            return $this->handleResponse(false, 'This ticket does not belong to the authenticated user.', [], 404);
         }
 
         $ticket->load(['type', 'files', 'owner']);
@@ -74,10 +73,10 @@ class TicketStudentApiController extends Controller
 
         $ticketData = $this->transformTicket($ticket);
         $ticketData['replies'] = collect($repliesPaginator->items())
-            ->map(fn ($reply) => $this->transformReply($reply))
+            ->map(fn($reply) => $this->transformReply($reply))
             ->values();
 
-        return handleResponse(true, 'Ticket details fetched successfully.', [
+        return $this->handleResponse(true, 'Ticket details fetched successfully.', [
             'ticket' => $ticketData,
             'pagination' => [
                 'current_page' => $repliesPaginator->currentPage(),
@@ -91,25 +90,25 @@ class TicketStudentApiController extends Controller
     {
         $ticket = Ticket::query()->find($id);
         if (!$ticket) {
-            return handleResponse(false, 'Ticket not found.', [], 404);
+            return $this->handleResponse(false, 'Ticket not found.', [], 404);
         }
         $owner = $this->resolveTicketOwner();
 
         if (!$owner || !$this->ticketBelongsToOwner($ticket, $owner)) {
-            return handleResponse(false, 'his ticket does not belong to the authenticated user.', [], 404);
+            return $this->handleResponse(false, 'his ticket does not belong to the authenticated user.', [], 404);
         }
 
         $ticket->load(['replies.sender', 'replies.file']);
 
-        return handleResponse(true, 'Ticket replies fetched successfully.', [
-            'replies' => $ticket->replies->map(fn (TicketReply $reply) => $this->transformReply($reply))->values(),
+        return $this->handleResponse(true, 'Ticket replies fetched successfully.', [
+            'replies' => $ticket->replies->map(fn(TicketReply $reply) => $this->transformReply($reply))->values(),
         ], 200);
     }
     public function store(Request $request): JsonResponse
     {
         $owner = $this->resolveTicketOwner();
         if (!$owner) {
-            return handleResponse(false, 'Ticket owner could not be resolved for the provided token.', [], 404);
+            return $this->handleResponse(false, 'Ticket owner could not be resolved for the provided token.', [], 404);
         }
 
         $validated = $request->validate([
@@ -128,9 +127,9 @@ class TicketStudentApiController extends Controller
                 ->where('owner_id', $owner->getKey())
                 ->where('status', 'open')
                 ->count();
-                if ($oldOpenTicketsCount > 0) {
-                    return handleResponse(false, 'You have an open ticket. Please finish it before opening a new one.', [], 403);
-                }
+            if ($oldOpenTicketsCount > 0) {
+                return $this->handleResponse(false, 'You have an open ticket. Please finish it before opening a new one.', [], 403);
+            }
             $ticket = Ticket::query()->create([
                 'title' => $validated['title'],
                 'body' => $validated['body'],
@@ -166,11 +165,11 @@ class TicketStudentApiController extends Controller
 
             $ticket->load(['type', 'files', 'replies.sender']);
 
-            return handleResponse(true, 'Ticket created successfully.', ['ticket' => $this->transformTicket($ticket)], 201);
+            return $this->handleResponse(true, 'Ticket created successfully.', ['ticket' => $this->transformTicket($ticket)], 201);
         } catch (\Throwable $exception) {
             DB::rollBack();
 
-            return handleResponse(false, 'Failed to create ticket.', ['error' => $exception->getMessage()], 500);
+            return $this->handleResponse(false, 'Failed to create ticket.', ['error' => $exception->getMessage()], 500);
         }
     }
     public function storeReply(Request $request, $id): JsonResponse
@@ -178,18 +177,18 @@ class TicketStudentApiController extends Controller
         $file = null;
         $ticket = Ticket::query()->find($id);
         if (!$ticket) {
-            return handleResponse(false, 'Ticket not found.', [], 404);
+            return $this->handleResponse(false, 'Ticket not found.', [], 404);
         }
         $owner = $this->resolveTicketOwner();
 
         if (!$owner || !$this->ticketBelongsToOwner($ticket, $owner)) {
-            return handleResponse(false, 'Ticket not found.', [], 404);
+            return $this->handleResponse(false, 'Ticket not found.', [], 404);
         }
 
         $validated = $request->validate([
             'message' => ['required', 'string'],
             'files' => ['nullable', 'array', 'max:1'],
-            'files.*' => ['file', 'mimes:jpg,png,pdf,docx', 'max:10240'],
+            'files.*' => ['nullable', 'file', 'mimes:jpg,png,pdf,docx', 'max:10240'],
         ]);
         if ($request->hasFile('files')) {
             foreach ($request->file('files') as $file) {
@@ -224,7 +223,7 @@ class TicketStudentApiController extends Controller
 
         $reply->load('sender');
 
-        return handleResponse(true, 'Reply added successfully.', [
+        return $this->handleResponse(true, 'Reply added successfully.', [
             'reply' => [
                 'id' => $reply->id,
                 'ticket_id' => $reply->ticket_id,
@@ -247,18 +246,18 @@ class TicketStudentApiController extends Controller
     {
         $typeMap = config('ticketing.owner.type_map', []);
         $requestType = (string) request()->TYPE;
-        
+
         if (!isset($typeMap[$requestType])) {
             return null;
         }
-        
+
         $modelClass = $typeMap[$requestType];
         $requestId = request()->ID;
-        
+
         if (!$requestId || !class_exists($modelClass)) {
             return null;
         }
-        
+
         return $modelClass::query()->find($requestId);
     }
 
@@ -286,7 +285,6 @@ class TicketStudentApiController extends Controller
 
     private function transformTicket(Ticket $ticket): array
     {
-        $repliesFilesId = $ticket->replies->pluck('file.id')->filter()->values()->all();
         $data = [
             'id' => $ticket->id,
             'title' => $ticket->title,
@@ -306,6 +304,11 @@ class TicketStudentApiController extends Controller
                 'priority' => $ticket->type->priority,
             ];
         }
+        if ($ticket->relationLoaded('replies')) {
+            $data['replies'] = $ticket->replies->map(fn(TicketReply $reply) => $this->transformReply($reply))->values();
+            $repliesFilesId = $ticket->replies->pluck('file.id')->filter()->values()->all();
+        }
+
         if ($ticket->relationLoaded('files')) {
             $data['files'] = $ticket->files->filter(function ($file) use ($repliesFilesId) {
                 return !in_array($file->id, $repliesFilesId);
@@ -318,9 +321,14 @@ class TicketStudentApiController extends Controller
                 ];
             })->values();
         }
-        if ($ticket->relationLoaded('replies')) {
-            $data['replies'] = $ticket->replies->map(fn (TicketReply $reply) => $this->transformReply($reply))->values();
-        }
+
         return $data;
+    }
+    public function handleResponse($success = true, $message = '', $data = [], $statusCode = 200)
+    {
+        return response()->json([
+            'success' => $success,
+            'message' => $message,
+        ] + (array) $data, $statusCode);
     }
 }
