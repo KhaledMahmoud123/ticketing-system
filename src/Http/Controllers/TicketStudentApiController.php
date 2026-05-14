@@ -39,7 +39,7 @@ class TicketStudentApiController extends Controller
         }
 
         $tickets = Ticket::query()
-            ->with(['type', 'files', 'replies.sender', 'owner'])
+            ->with(['type', 'owner'])
             ->where('owner_type', $owner::class)
             ->where('owner_id', $owner->getKey())
             ->when($request->filled('status'), function ($query) use ($request) {
@@ -53,23 +53,47 @@ class TicketStudentApiController extends Controller
 
     public function show($id): JsonResponse
     {
-        $ticket = Ticket::find($id);
+        $owner = $this->resolveTicketOwner();
+        $ticket = Ticket::query()
+            ->where('owner_type', $owner::class)
+            ->where('owner_id', $owner->getKey())
+            ->whereKey($id)
+            ->first();
         if (!$ticket) {
             return handleResponse(false, 'Ticket not found.', [], 404);
         }
-        $owner = $this->resolveTicketOwner();
         if (!$owner || !$this->ticketBelongsToOwner($ticket, $owner)) {
             return handleResponse(false, 'This ticket does not belong to the authenticated user.', [], 404);
         }
 
-        $ticket->load(['type', 'files', 'replies.sender', 'owner']);
+        $ticket->load(['type', 'files', 'owner']);
 
-        return handleResponse(true, 'Ticket details fetched successfully.', ['ticket' => $this->transformTicket($ticket)], 200);
+        $perPage = max(1, min((int) request()->input('per_page', 15), 100));
+
+        $repliesPaginator = $ticket->replies()
+            ->with(['sender', 'file'])
+            ->orderByDesc('id')
+            ->paginate($perPage)
+            ->appends(request()->query());
+
+        $ticketData = $this->transformTicket($ticket);
+        $ticketData['replies'] = collect($repliesPaginator->items())
+            ->map(fn ($reply) => $this->transformReply($reply))
+            ->values();
+
+        return handleResponse(true, 'Ticket details fetched successfully.', [
+            'ticket' => $ticketData,
+            'pagination' => [
+                'current_page' => $repliesPaginator->currentPage(),
+                'last_page' => $repliesPaginator->lastPage(),
+                'per_page' => $repliesPaginator->perPage(),
+                'total' => $repliesPaginator->total(),
+            ],
+        ], 200);
     }
-
-    public function replies($id): JsonResponse
+    public function replies(Request $request, $id): JsonResponse
     {
-        $ticket = Ticket::find($id);
+        $ticket = Ticket::query()->find($id);
         if (!$ticket) {
             return handleResponse(false, 'Ticket not found.', [], 404);
         }
@@ -79,20 +103,10 @@ class TicketStudentApiController extends Controller
             return handleResponse(false, 'his ticket does not belong to the authenticated user.', [], 404);
         }
 
-        $ticket->load(['replies.sender']);
+        $ticket->load(['replies.sender', 'replies.file']);
 
         return handleResponse(true, 'Ticket replies fetched successfully.', [
-            'replies' => $ticket->replies->map(function ($reply) {
-                return [
-                    'id' => $reply->id,
-                    'ticket_id' => $reply->ticket_id,
-                    'sender_type' => class_basename($reply->sender_type),
-                    'sender_id' => $reply->sender_id,
-                    'message' => $reply->message,
-                    'is_read' => (bool) $reply->is_read,
-                    'created_at' => $reply->created_at,
-                ];
-            })->values()
+            'replies' => $ticket->replies->map(fn (TicketReply $reply) => $this->transformReply($reply))->values(),
         ], 200);
     }
     public function store(Request $request): JsonResponse
@@ -113,6 +127,14 @@ class TicketStudentApiController extends Controller
         DB::beginTransaction();
 
         try {
+            $oldOpenTicketsCount = Ticket::query()
+                ->where('owner_type', $owner::class)
+                ->where('owner_id', $owner->getKey())
+                ->where('status', 'open')
+                ->count();
+                if ($oldOpenTicketsCount > 0) {
+                    return handleResponse(false, 'You have an open ticket. Please finish it before opening a new one.', [], 403);
+                }
             $ticket = Ticket::query()->create([
                 'title' => $validated['title'],
                 'body' => $validated['body'],
@@ -158,7 +180,7 @@ class TicketStudentApiController extends Controller
     public function storeReply(Request $request, $id): JsonResponse
     {
         $file = null;
-        $ticket = Ticket::find($id);
+        $ticket = Ticket::query()->find($id);
         if (!$ticket) {
             return handleResponse(false, 'Ticket not found.', [], 404);
         }
@@ -170,8 +192,8 @@ class TicketStudentApiController extends Controller
 
         $validated = $request->validate([
             'message' => ['required', 'string'],
-            'files' => ['nullable', 'array', 'max:5'],
-            'files.*' => ['file', 'mimes:jpg,png,pdf,docx', 'max:51200'],
+            'files' => ['nullable', 'array', 'max:1'],
+            'files.*' => ['file', 'mimes:jpg,png,pdf,docx', 'max:10240'],
         ]);
         if ($request->hasFile('files')) {
             foreach ($request->file('files') as $file) {
@@ -192,8 +214,10 @@ class TicketStudentApiController extends Controller
                 ]);
             }
         }
+        $ticket->markRepliesAsRead();
         $reply = TicketReply::create([
             'ticket_id' => $ticket->id,
+            'file_id' => $file ? $file->id : null,
             'sender_type' => $owner::class,
             'sender_id' => (string) $owner->getKey(),
             'message' => $validated['message'],
@@ -215,8 +239,6 @@ class TicketStudentApiController extends Controller
                 'created_at' => $reply->created_at,
                 'files' => $file ? [
                     'id' => $file->id,
-                    'ticket_id' => $file->ticket_id,
-                    'name' => (string) $file->name,
                     'original_name' => basename((string) $file->name),
                     'type' => $file->type,
                     'url' => $file->url,
@@ -242,40 +264,59 @@ class TicketStudentApiController extends Controller
             && (string) $ticket->owner_id === (string) $owner->getKey();
     }
 
-    private function transformTicket(Ticket $ticket): array
+    private function transformReply(TicketReply $reply): array
     {
         return [
+            'message' => $reply->message,
+            'is_read' => (bool) $reply->is_read,
+            'sender_type' => class_basename($reply->sender_type),
+            'created_at' => $reply->created_at,
+            'files' => $reply->relationLoaded('file') && $reply->file ? [
+                'original_name' => basename((string) $reply->file->name),
+                'type' => $reply->file->type,
+                'url' => $reply->file->url,
+                'created_at' => $reply->file->created_at,
+            ] : null,
+        ];
+    }
+
+    private function transformTicket(Ticket $ticket): array
+    {
+        $repliesFilesId = $ticket->replies->pluck('file.id')->filter()->values()->all();
+        $data = [
             'id' => $ticket->id,
             'title' => $ticket->title,
             'body' => $ticket->body,
-            'type_id' => $ticket->type_id,
-            'type' => $ticket->type,
             'owner_label' => $ticket->owner_label,
             'priority' => $ticket->priority,
             'status' => $ticket->status,
             'created_at' => $ticket->created_at,
             'updated_at' => $ticket->updated_at,
-            'files' => $ticket->files->map(function (TicketFile $file) {
-                $filePath = (string) $file->name;
+            'owner_type' => class_basename($ticket->owner_type),
+        ];
 
+        if ($ticket->relationLoaded('type')) {
+            $data['type'] = [
+                'name' => $ticket->type->name,
+                'description' => $ticket->type->description,
+                'priority' => $ticket->type->priority,
+            ];
+        }
+        if ($ticket->relationLoaded('files')) {
+            $data['files'] = $ticket->files->filter(function ($file) use ($repliesFilesId) {
+                return !in_array($file->id, $repliesFilesId);
+            })->map(function ($file) {
                 return [
-                    'id' => $file->id,
-                    'ticket_id' => $file->ticket_id,
-                    'name' => $filePath,
-                    'original_name' => basename($filePath),
+                    'original_name' => basename((string) $file->name),
                     'type' => $file->type,
                     'url' => $file->url,
                     'created_at' => $file->created_at,
                 ];
-            })->values(),
-            'replies' => $ticket->replies->map(function ($reply) {
-                return [
-                    'id' => $reply->id,
-                    'message' => $reply->message,
-                    'is_read' => (bool) $reply->is_read,
-                    'created_at' => $reply->created_at,
-                ];
-            })->values(),
-        ];
+            })->values();
+        }
+        if ($ticket->relationLoaded('replies')) {
+            $data['replies'] = $ticket->replies->map(fn (TicketReply $reply) => $this->transformReply($reply))->values();
+        }
+        return $data;
     }
 }
