@@ -5,6 +5,7 @@ namespace Khaled\Ticketing\Http\Controllers;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controller;
 use Illuminate\Validation\Rule;
 use Khaled\Ticketing\Models\TicketType;
 
