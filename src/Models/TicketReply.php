@@ -1,12 +1,11 @@
 <?php
 
-namespace Khaled\Ticketing\Models;
+namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
-use Khaled\Ticketing\Models\Ticket;
 
 class TicketReply extends Model
 {
@@ -14,6 +13,7 @@ class TicketReply extends Model
 
     protected $fillable = [
         'ticket_id',
+        'file_id',
         'sender_type',
         'sender_id',
         'message',
@@ -28,9 +28,12 @@ class TicketReply extends Model
     {
         return $this->belongsTo(Ticket::class, 'ticket_id');
     }
-
     public function sender(): MorphTo
     {
         return $this->morphTo();
+    }
+    public function file(): BelongsTo
+    {
+        return $this->belongsTo(TicketFile::class, 'file_id');
     }
 }

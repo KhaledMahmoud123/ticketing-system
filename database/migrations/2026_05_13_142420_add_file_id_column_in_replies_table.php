@@ -1,0 +1,34 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     *
+     * @return void
+     */
+    public function up()
+    {
+        Schema::table('ticket_replies', function (Blueprint $table) {
+            $table->unsignedBigInteger('file_id')->nullable()->after('ticket_id');
+            $table->foreign('file_id')->references('id')->on('ticket_files')->onDelete('set null');
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     *
+     * @return void
+     */
+    public function down()
+    {
+        Schema::table('ticket_replies', function (Blueprint $table) {
+            $table->dropForeign('ticket_replies_file_id_foreign');
+            $table->dropColumn('file_id');
+        });
+    }
+};

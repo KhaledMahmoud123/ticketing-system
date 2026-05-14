@@ -1,11 +1,11 @@
 <?php
 
-namespace Khaled\Ticketing\Models;
+namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Khaled\Ticketing\Models\Ticket;
 
 class TicketType extends Model
 {
@@ -14,9 +14,14 @@ class TicketType extends Model
     protected $fillable = [
         'name',
         'description',
-        'access_key',
+        'role_id',
         'priority',
     ];
+
+    public function role(): BelongsTo
+    {
+        return $this->belongsTo(Role::class, 'role_id');
+    }
 
     public function tickets(): HasMany
     {

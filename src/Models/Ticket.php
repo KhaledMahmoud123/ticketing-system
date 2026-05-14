@@ -1,15 +1,12 @@
 <?php
 
-namespace Khaled\Ticketing\Models;
+namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
-use Khaled\Ticketing\Models\TicketFile;
-use Khaled\Ticketing\Models\TicketReply;
-use Khaled\Ticketing\Models\TicketType;
 
 class Ticket extends Model
 {
@@ -37,7 +34,7 @@ class Ticket extends Model
 
     public function user(): BelongsTo
     {
-        return $this->belongsTo(config('ticketing.models.user', \App\Models\User::class), 'user_id');
+        return $this->belongsTo(User::class, 'user_id');
     }
 
     public function owner(): MorphTo
@@ -79,5 +76,9 @@ class Ticket extends Model
         }
 
         return class_basename($owner) . ' #' . $owner->getKey();
+    }
+    public function markRepliesAsRead(): void
+    {
+        $this->replies()->update(['is_read' => true]);
     }
 }

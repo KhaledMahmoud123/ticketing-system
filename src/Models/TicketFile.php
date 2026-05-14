@@ -1,11 +1,10 @@
 <?php
 
-namespace Khaled\Ticketing\Models;
+namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Khaled\Ticketing\Models\Ticket;
 
 class TicketFile extends Model
 {
@@ -29,5 +28,9 @@ class TicketFile extends Model
     public function getUrlAttribute(): string
     {
         return asset('storage/' . ltrim((string) $this->name, '/'));
+    }
+    public function ticketReply()
+    {
+        return $this->hasOne(TicketReply::class, 'file_id');
     }
 }
