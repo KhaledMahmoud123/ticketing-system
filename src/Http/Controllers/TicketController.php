@@ -3,10 +3,6 @@
 namespace Khaled\Ticketing\Http\Controllers;
 
 use App\Http\Controllers\Controller;
-use App\Models\Applicant;
-use App\Models\Instructor;
-use App\Models\Parents;
-use App\Models\Student;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -165,11 +161,13 @@ class TicketController extends Controller
 
     private function getUnreadCount(int $ticketId): int
     {
+        $ownerModels = array_values(config('ticketing.models', []));
+        
         return (int) Cache::remember("tickets:unread:admin:" . $ticketId,
             now()->addMinutes(5),
             fn () => TicketReply::query()
                 ->where('ticket_id', $ticketId)
-                ->whereIn('sender_type', [Student::class, Parents::class, Instructor::class, Applicant::class])
+                ->whereIn('sender_type', $ownerModels)
                 ->where('is_read', false)
                 ->count()
         );

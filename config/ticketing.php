@@ -6,7 +6,11 @@ return [
     'route_prefix' => 'tickets',
 
     'models' => [
-        'user' => App\Models\User::class,
+        // 'user' => App\Models\User::class,
+        // 'student' => App\Models\Student::class,
+        // 'parent' => App\Models\Parents::class,
+        // 'instructor' => App\Models\Instructor::class,
+        // 'applicant' => App\Models\Applicant::class,
     ],
 
     'owner' => [
@@ -16,10 +20,10 @@ return [
             'id' => 'ID',
         ],
         'type_map' => [
-            'student' => App\Models\Student::class,
-            'parent' => App\Models\Parents::class,
-            'instructor' => App\Models\Instructor::class,
-            'applicant' => App\Models\Applicant::class,
+            // 'student' => App\Models\Student::class,
+            // 'parent' => App\Models\Parents::class,
+            // 'instructor' => App\Models\Instructor::class,
+            // 'applicant' => App\Models\Applicant::class,
         ],
     ],
 

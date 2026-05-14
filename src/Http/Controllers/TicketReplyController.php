@@ -3,10 +3,6 @@
 namespace Khaled\Ticketing\Http\Controllers;
 
 use App\Http\Controllers\Controller;
-use App\Models\Student;
-use App\Models\Applicant;
-use App\Models\Instructor;
-use App\Models\Parents;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -125,7 +121,7 @@ class TicketReplyController extends Controller
 
             TicketReply::query()
                 ->where('ticket_id', $ticket->id)
-                ->whereIn('sender_type', [Student::class, Parents::class, Instructor::class, Applicant::class])
+                ->whereIn('sender_type', array_values(config('ticketing.models', [])))
                 ->where('is_read', false)
                 ->update(['is_read' => true]);
 

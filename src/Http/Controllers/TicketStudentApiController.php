@@ -1,21 +1,16 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace Khaled\Ticketing\Http\Controllers;
 
-use App\Models\Applicant;
-use App\Models\Student;
-use App\Models\Ticket;
-use App\Models\TicketFile;
-use App\Models\TicketReply;
-use App\Models\TicketType;
-use App\Models\Instructor;
-use App\Models\Parents;
-use App\Models\Token;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Khaled\Ticketing\Models\Ticket;
+use Khaled\Ticketing\Models\TicketFile;
+use Khaled\Ticketing\Models\TicketReply;
+use Khaled\Ticketing\Models\TicketType;
 
 class TicketStudentApiController extends Controller
 {
@@ -249,13 +244,21 @@ class TicketStudentApiController extends Controller
     }
     private function resolveTicketOwner(): ?Model
     {
-        return match ((string) request()->TYPE) {
-            Token::TYPE_STUDENT => Student::query()->find(request()->ID),
-            Token::TYPE_PARENT => Parents::query()->find(request()->ID),
-            Token::TYPE_INSTRUCTOR => Instructor::query()->find(request()->ID),
-            Token::TYPE_APPLICANT => Applicant::query()->find(request()->ID),
-            default => Student::query()->find(request()->ID),
-        };
+        $typeMap = config('ticketing.owner.type_map', []);
+        $requestType = (string) request()->TYPE;
+        
+        if (!isset($typeMap[$requestType])) {
+            return null;
+        }
+        
+        $modelClass = $typeMap[$requestType];
+        $requestId = request()->ID;
+        
+        if (!$requestId || !class_exists($modelClass)) {
+            return null;
+        }
+        
+        return $modelClass::query()->find($requestId);
     }
 
     private function ticketBelongsToOwner(Ticket $ticket, Model $owner): bool
