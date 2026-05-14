@@ -161,7 +161,7 @@ class TicketController extends Controller
 
     private function getUnreadCount(int $ticketId): int
     {
-        $ownerModels = array_values(config('ticketing.models', []));
+        $ownerModels = array_values(config('ticketing.owner.type_map', []));
         
         return (int) Cache::remember("tickets:unread:admin:" . $ticketId,
             now()->addMinutes(5),

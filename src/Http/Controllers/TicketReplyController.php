@@ -121,7 +121,7 @@ class TicketReplyController extends Controller
 
             TicketReply::query()
                 ->where('ticket_id', $ticket->id)
-                ->whereIn('sender_type', array_values(config('ticketing.models', [])))
+                ->whereIn('sender_type', array_values(config('ticketing.owner.type_map', [])))
                 ->where('is_read', false)
                 ->update(['is_read' => true]);
 
