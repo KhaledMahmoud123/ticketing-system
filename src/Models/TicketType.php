@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Models;
+namespace Khaled\Ticketing\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -20,7 +20,7 @@ class TicketType extends Model
 
     public function role(): BelongsTo
     {
-        return $this->belongsTo(Role::class, 'role_id');
+        return $this->belongsTo(config('ticketing.models.role', \App\Models\Role::class), 'role_id');
     }
 
     public function tickets(): HasMany

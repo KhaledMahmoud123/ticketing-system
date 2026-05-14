@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Models;
+namespace Khaled\Ticketing\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;

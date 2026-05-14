@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Models;
+namespace Khaled\Ticketing\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -34,7 +34,7 @@ class Ticket extends Model
 
     public function user(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'user_id');
+        return $this->belongsTo(config('ticketing.models.user', \App\Models\User::class), 'user_id');
     }
 
     public function owner(): MorphTo
