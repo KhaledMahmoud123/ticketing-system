@@ -2,7 +2,6 @@
 
 namespace Khaled\Ticketing\Http\Controllers;
 
-use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Khaled\Ticketing\Models\TicketFile;

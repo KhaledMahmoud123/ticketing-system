@@ -2,7 +2,6 @@
 
 namespace Khaled\Ticketing\Http\Controllers;
 
-use App\Http\Controllers\Controller;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
