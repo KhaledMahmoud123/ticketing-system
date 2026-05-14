@@ -20,6 +20,11 @@ class TicketingServiceProvider extends ServiceProvider
         $this->mergeConfigFrom(__DIR__ . '/../config/ticketing.php', 'ticketing');
         $this->publishes([
             __DIR__ . '/../config/ticketing.php' => config_path('ticketing.php'),
+        ], 'ticketing-config');
+        $this->publishes([__DIR__ . '/../resources/views' => resource_path('views/vendor/ticketing')], 'ticketing-views');
+        // Global publish for all assets
+        $this->publishes([
+            __DIR__ . '/../config/ticketing.php' => config_path('ticketing.php'),
             __DIR__ . '/../resources/views' => resource_path('views/vendor/ticketing'),
             __DIR__ . '/../database/migrations' => database_path('migrations'),
         ], 'ticketing');
