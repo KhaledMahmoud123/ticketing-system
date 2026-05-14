@@ -3,14 +3,16 @@
 return [
     'table' => 'tickets',
     'middleware' => ['web', 'auth'],
+    'api_middleware' => [
+        'auth:sanctum',
+        \App\Http\Middleware\CheckBearerToken::class
+    ],
     'route_prefix' => 'tickets',
 
     'models' => [
         // 'user' => App\Models\User::class,
         // 'student' => App\Models\Student::class,
-        // 'parent' => App\Models\Parents::class,
-        // 'instructor' => App\Models\Instructor::class,
-        // 'applicant' => App\Models\Applicant::class,
+        // 'staff' => App\Models\Instructor::class,
     ],
 
     'owner' => [
@@ -20,10 +22,8 @@ return [
             'id' => 'ID',
         ],
         'type_map' => [
-            // 'student' => App\Models\Student::class,
-            // 'parent' => App\Models\Parents::class,
-            // 'instructor' => App\Models\Instructor::class,
-            // 'applicant' => App\Models\Applicant::class,
+            'STUD' => App\Models\Student::class,
+            // 'STAFF' => App\Models\Instructor::class,
         ],
     ],
 
