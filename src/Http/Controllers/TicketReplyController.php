@@ -69,19 +69,24 @@ class TicketReplyController extends Controller
             'files' => ['nullable', 'array'],
             'files.*' => ['file', 'max:10240'],
         ]);
+        $files = $request->file('files');
+        if (is_array($files)) {
+            $uploadedFile = count($files) ? $files[0] : null;
+        } else {
+            $uploadedFile = $files;
+        }
 
         return $this->createUserReply(
             $ticket,
             (int) $authUserId,
             (string) ($validated['message'] ?? ''),
-            $request->file('files', [])
+            $uploadedFile
         );
     }
 
-    private function createUserReply(Ticket $ticket, int $authUserId, string $message, array $uploadedFiles = []): JsonResponse
+    private function createUserReply(Ticket $ticket, int $authUserId, string $message,$uploadedFile=null): JsonResponse
     {
-        $hasFiles = count($uploadedFiles) > 0;
-        if (trim($message) === '' && !$hasFiles) {
+        if (trim($message) === '' && !$uploadedFile) {
             return response()->json([
                 'status' => false,
                 'message' => 'Please enter a message or attach at least one file.',
@@ -91,38 +96,30 @@ class TicketReplyController extends Controller
         DB::beginTransaction();
 
         try {
-            $authUser = Auth::user();
-            $senderModel = is_object($authUser) ? get_class($authUser) : (string) config('ticketing.models.user', '');
+            if ($uploadedFile) {
+                $originalName = $uploadedFile->getClientOriginalName();
+                $baseName = pathinfo($originalName, PATHINFO_FILENAME);
+                $extension = $uploadedFile->getClientOriginalExtension();
+                $storedFileName = str_replace(' ', '_', $baseName . '_' . now()->timestamp . '_' . uniqid() . '.' . $extension);
+                $path = $uploadedFile->storeAs('tickets/' . $ticket->id, $storedFileName, 'public');
 
+                $file=TicketFile::query()->create([
+                    'ticket_id' => $ticket->id,
+                    'name' => $path,
+                    'type' => $uploadedFile->getMimeType() ?: ($uploadedFile->getClientMimeType() ?: 'application/octet-stream'),
+                ]);
+            }
             $reply = TicketReply::create([
                 'ticket_id' => $ticket->id,
-                'sender_type' => $senderModel,
+                'sender_type' => User::class,
                 'sender_id' => (string) $authUserId,
                 'message' => trim($message) !== '' ? $message : 'Attachment',
                 'is_read' => true,
+                'file_id'=> $uploadedFile ? $file->id : null,
             ]);
-
-            foreach ($uploadedFiles as $file) {
-                if (!$file || !$file->isValid()) {
-                    continue;
-                }
-
-                $originalName = $file->getClientOriginalName();
-                $baseName = pathinfo($originalName, PATHINFO_FILENAME);
-                $extension = $file->getClientOriginalExtension();
-                $storedFileName = str_replace(' ', '_', $baseName . '_' . now()->timestamp . '_' . uniqid() . '.' . $extension);
-                $path = $file->storeAs('tickets/' . $ticket->id, $storedFileName, 'public');
-
-                TicketFile::query()->create([
-                    'ticket_id' => $ticket->id,
-                    'name' => $path,
-                    'type' => $file->getMimeType() ?: ($file->getClientMimeType() ?: 'application/octet-stream'),
-                ]);
-            }
-
             TicketReply::query()
                 ->where('ticket_id', $ticket->id)
-                ->whereIn('sender_type', array_values(config('ticketing.owner.type_map', [])))
+                ->whereIn('sender_type', [Student::class, Parents::class, Instructor::class, Applicant::class])
                 ->where('is_read', false)
                 ->update(['is_read' => true]);
 
@@ -142,7 +139,7 @@ class TicketReplyController extends Controller
 
             return response()->json([
                 'status' => false,
-                'message' => 'Unable to add reply.',
+                'message' => 'Unable to add reply. ',
             ], 500);
         }
     }

@@ -47,7 +47,7 @@ class TicketStudentApiController extends Controller
         return $this->handleResponse(true, 'Student tickets fetched successfully.', ['tickets' => $tickets->map(fn(Ticket $ticket) => $this->transformTicket($ticket))->values()], 200);
     }
 
-    public function show($id): JsonResponse
+     public function show($id): JsonResponse
     {
         $owner = $this->resolveTicketOwner();
         $ticket = Ticket::query()
@@ -55,9 +55,11 @@ class TicketStudentApiController extends Controller
             ->where('owner_id', $owner->getKey())
             ->whereKey($id)
             ->first();
+
         if (!$ticket) {
             return $this->handleResponse(false, 'Ticket not found.', [], 404);
         }
+
         if (!$owner || !$this->ticketBelongsToOwner($ticket, $owner)) {
             return $this->handleResponse(false, 'This ticket does not belong to the authenticated user.', [], 404);
         }
@@ -66,7 +68,7 @@ class TicketStudentApiController extends Controller
 
         $perPage = max(1, min((int) request()->input('per_page', 15), 100));
 
-        // Get ALL reply file IDs (not just current page)
+        // Fetch ALL reply file IDs across all pages
         $allRepliesFileIds = $ticket->replies()
             ->with('file')
             ->get()
@@ -75,7 +77,7 @@ class TicketStudentApiController extends Controller
             ->values()
             ->all();
 
-        // Then paginate normally
+        // Paginate replies normally
         $repliesPaginator = $ticket->replies()
             ->with(['sender', 'file'])
             ->orderByDesc('id')
@@ -95,7 +97,6 @@ class TicketStudentApiController extends Controller
                 'total' => $repliesPaginator->total(),
             ],
         ], 200);
-
     }
     public function replies(Request $request, $id): JsonResponse
     {
@@ -295,7 +296,7 @@ class TicketStudentApiController extends Controller
     }
     private function transformTicket(Ticket $ticket, ?Collection $replies = null, array $allRepliesFileIds = []): array
     {
-        $repliesFilesId = $allRepliesFileIds; // use the full list
+        $repliesFilesId = $allRepliesFileIds;
 
         $data = [
             'id' => $ticket->id,
@@ -321,12 +322,12 @@ class TicketStudentApiController extends Controller
             $data['replies'] = $replies
                 ->map(fn(TicketReply $reply) => $this->transformReply($reply))
                 ->values();
+
         } elseif ($ticket->relationLoaded('replies')) {
             $data['replies'] = $ticket->replies
                 ->map(fn(TicketReply $reply) => $this->transformReply($reply))
                 ->values();
 
-            // Only compute from loaded replies when no allRepliesFileIds were passed
             $repliesFilesId = $ticket->replies
                 ->map(fn($reply) => $reply->relationLoaded('file') && $reply->file ? $reply->file->id : null)
                 ->filter()
@@ -345,6 +346,7 @@ class TicketStudentApiController extends Controller
                 ])
                 ->values();
         }
+
         return $data;
     }
     public function handleResponse($success = true, $message = '', $data = [], $statusCode = 200)
