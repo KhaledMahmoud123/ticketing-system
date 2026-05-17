@@ -91,7 +91,8 @@ class TicketReplyController extends Controller
         DB::beginTransaction();
 
         try {
-            $senderModel = config('ticketing.models.user', \App\Models\User::class);
+            $authUser = Auth::user();
+            $senderModel = is_object($authUser) ? get_class($authUser) : (string) config('ticketing.models.user', '');
 
             $reply = TicketReply::create([
                 'ticket_id' => $ticket->id,
