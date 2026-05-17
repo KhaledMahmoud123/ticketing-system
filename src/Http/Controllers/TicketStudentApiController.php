@@ -13,16 +13,9 @@ use Khaled\Ticketing\Models\Ticket;
 use Khaled\Ticketing\Models\TicketFile;
 use Khaled\Ticketing\Models\TicketReply;
 use Khaled\Ticketing\Models\TicketType;
-use Khaled\Ticketing\Contracts\TicketOwnerResolver;
 
 class TicketStudentApiController extends Controller
 {
-    private TicketOwnerResolver $ownerResolver;
-
-    public function __construct(TicketOwnerResolver $ownerResolver)
-    {
-        $this->ownerResolver = $ownerResolver;
-    }
     public function types(): JsonResponse
     {
         $types = TicketType::query()
@@ -35,7 +28,7 @@ class TicketStudentApiController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $owner = $this->ownerResolver->resolve($request);
+        $owner = $this->resolveTicketOwner();
 
         if (!$owner) {
             return $this->handleResponse(false, 'Ticket owner could not be resolved for the provided token.', [], 404);
@@ -56,7 +49,7 @@ class TicketStudentApiController extends Controller
 
     public function show($id): JsonResponse
     {
-        $owner = $this->ownerResolver->resolve(request());
+        $owner = $this->resolveTicketOwner();
         $ticket = Ticket::query()
             ->where('owner_type', $owner::class)
             ->where('owner_id', $owner->getKey())
@@ -65,7 +58,7 @@ class TicketStudentApiController extends Controller
         if (!$ticket) {
             return $this->handleResponse(false, 'Ticket not found.', [], 404);
         }
-        if (!$owner || !$this->ownerResolver->ownsTicket($ticket, $owner)) {
+        if (!$owner || !$this->ticketBelongsToOwner($ticket, $owner)) {
             return $this->handleResponse(false, 'This ticket does not belong to the authenticated user.', [], 404);
         }
 
@@ -110,9 +103,9 @@ class TicketStudentApiController extends Controller
         if (!$ticket) {
             return $this->handleResponse(false, 'Ticket not found.', [], 404);
         }
-        $owner = $this->ownerResolver->resolve($request);
+        $owner = $this->resolveTicketOwner();
 
-        if (!$owner || !$this->ownerResolver->ownsTicket($ticket, $owner)) {
+        if (!$owner || !$this->ticketBelongsToOwner($ticket, $owner)) {
             return $this->handleResponse(false, 'his ticket does not belong to the authenticated user.', [], 404);
         }
 
@@ -124,7 +117,7 @@ class TicketStudentApiController extends Controller
     }
     public function store(Request $request): JsonResponse
     {
-        $owner = $this->ownerResolver->resolve($request);
+        $owner = $this->resolveTicketOwner();
         if (!$owner) {
             return $this->handleResponse(false, 'Ticket owner could not be resolved for the provided token.', [], 404);
         }
@@ -197,9 +190,9 @@ class TicketStudentApiController extends Controller
         if (!$ticket) {
             return $this->handleResponse(false, 'Ticket not found.', [], 404);
         }
-        $owner = $this->ownerResolver->resolve($request);
+        $owner = $this->resolveTicketOwner();
 
-        if (!$owner || !$this->ownerResolver->ownsTicket($ticket, $owner)) {
+        if (!$owner || !$this->ticketBelongsToOwner($ticket, $owner)) {
             return $this->handleResponse(false, 'Ticket not found.', [], 404);
         }
 
@@ -260,7 +253,30 @@ class TicketStudentApiController extends Controller
             ]
         ], 201);
     }
-    
+    private function resolveTicketOwner(): ?Model
+    {
+        $typeMap = config('ticketing.owner.type_map', []);
+        $requestType = (string) request()->TYPE;
+
+        if (!isset($typeMap[$requestType])) {
+            return null;
+        }
+
+        $modelClass = $typeMap[$requestType];
+        $requestId = request()->ID;
+
+        if (!$requestId || !class_exists($modelClass)) {
+            return null;
+        }
+
+        return $modelClass::query()->find($requestId);
+    }
+
+    private function ticketBelongsToOwner(Ticket $ticket, Model $owner): bool
+    {
+        return (string) $ticket->owner_type === $owner::class
+            && (string) $ticket->owner_id === (string) $owner->getKey();
+    }
 
     private function transformReply(TicketReply $reply): array
     {
